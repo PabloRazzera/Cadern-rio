@@ -1,1 +1,632 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MySketchbook - Caderno Anotações</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#0b1220; --accent:#06b6d4; --muted:#94a3b8; --card:#0f172a;
+    --success:#10b981; --danger:#ef4444;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;
+    background: linear-gradient(135deg,#071129,#061826); color:#e6eef3;
+    display:flex; align-items:stretch; gap:18px; padding:18px;
+  }
+
+  /* Sidebar */
+  .sidebar{
+    width:300px; background:linear-gradient(180deg,#071022,#08142a); border-radius:12px;
+    padding:14px; box-shadow:0 8px 30px rgba(0,0,0,0.6);
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .brand{font-weight:700; font-size:18px; color:var(--accent); margin-bottom:4px}
+  .userbox{display:flex; gap:10px; align-items:center}
+  .avatar{width:44px;height:44px;border-radius:8px;background:#0e1726;display:flex;align-items:center;justify-content:center;font-weight:700}
+  .btn{background:rgba(255,255,255,0.04);border:none;padding:8px 10px;border-radius:8px;color:inherit;cursor:pointer}
+  .btn.primary{background:linear-gradient(180deg,var(--accent),#0891b2); color:#04121a;font-weight:700}
+  .small{font-size:13px;color:var(--muted)}
+  .muted{color:var(--muted)}
+
+  /* Day list / bookmarks */
+  .daylist{flex:1; overflow:auto; padding-right:6px}
+  .daybtn{width:100%;text-align:left;padding:8px;border-radius:8px;border:none;background:transparent;color:inherit;cursor:pointer}
+  .daybtn.active{background:linear-gradient(90deg,rgba(255,255,255,0.03),rgba(255,255,255,0.02));font-weight:600}
+
+  .bookmarks{margin-top:8px}
+  .bookmark-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.02)}
+  .bookmark-item .title{font-size:14px}
+
+  /* Main area */
+  .main{
+    flex:1; display:flex; flex-direction:column; gap:12px; min-width:0;
+  }
+  .topbar{display:flex;align-items:center;gap:12px;justify-content:space-between}
+  .searchbox{display:flex;gap:8px; align-items:center}
+  input[type="search"]{padding:8px 12px;border-radius:10px;border:none;background:rgba(255,255,255,0.03);color:inherit;min-width:300px}
+  .controls{display:flex;gap:8px;align-items:center}
+
+  .content{display:flex; gap:12px; align-items:flex-start}
+  .editor{
+    flex:1; background:linear-gradient(180deg,#071022,#061026); padding:16px;border-radius:12px; min-height:60vh;
+  }
+  .editor-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+  .titleline{display:flex;gap:8px;align-items:center}
+  .day-title{font-size:18px;font-weight:700}
+  .tag{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:8px;font-size:13px}
+
+  textarea#note{
+    width:100%; min-height:48vh; resize:vertical; padding:12px; border-radius:10px; border:none;
+    background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); color:inherit;
+    font-size:15px; line-height:1.5;
+  }
+
+  .search-results{max-height:300px; overflow:auto;background:rgba(255,255,255,0.02);padding:8px;border-radius:8px}
+  .result-item{padding:8px;border-radius:8px;cursor:pointer}
+  .result-item:hover{background:rgba(255,255,255,0.03)}
+  .highlight{background:rgba(6,182,212,0.15); padding:2px 4px;border-radius:4px;color:var(--accent)}
+
+  .footer{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;color:var(--muted); font-size:13px}
+  .status.unsaved{color:var(--danger)} .status.saved{color:var(--success)}
+
+  /* Responsive */
+  @media (max-width:920px){
+    .sidebar{display:none}
+    body{padding:10px}
+  }
+</style>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div>
+      <div class="brand">MySketchbook</div>
+      <div class="small muted">Caderno diário — 365 páginas</div>
+    </div>
+
+    <div class="userbox" id="userbox">
+      <div class="avatar" id="avatar">?</div>
+      <div style="flex:1">
+        <div id="usernameDisplay" style="font-weight:700">Convidado</div>
+        <div class="small muted" id="userActions">
+          <button class="btn" id="btnLogin">Entrar / Cadastrar</button>
+        </div>
+      </div>
+    </div>
+
+    <hr style="border:none;height:1px;background:rgba(255,255,255,0.03);margin:10px 0;border-radius:1px">
+
+    <div style="display:flex;gap:8px;margin-bottom:6px">
+      <button class="btn" id="btnPrev">◀ Anterior</button>
+      <button class="btn" id="btnNext">Próximo ▶</button>
+    </div>
+
+    <div class="muted small">Bookmarks</div>
+    <div class="bookmarks" id="bookmarks"></div>
+
+    <hr style="border:none;height:1px;background:rgba(255,255,255,0.03);margin:10px 0;border-radius:1px">
+
+    <div class="muted small">Navegar dias</div>
+    <div class="daylist" id="daylist" tabindex="0" aria-label="Lista de dias"></div>
+
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="btn" id="btnExport">Export</button>
+      <button class="btn" id="btnImport">Import</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="searchbox">
+        <input type="search" id="globalSearch" placeholder="Pesquisar anotações (por texto) — pressione Enter" />
+        <button class="btn" id="btnSearch">Pesquisar</button>
+      </div>
+      <div class="controls">
+        <div id="authControls"></div>
+      </div>
+    </div>
+
+    <div class="content">
+      <section class="editor" aria-label="Editor">
+        <div class="editor-header">
+          <div class="titleline">
+            <div class="day-title" id="dayTitle">Dia 1</div>
+            <div class="tag" id="tagCount">0 tags</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn" id="btnBookmark">Adicionar marcador</button>
+            <button class="btn" id="btnClearDay">Limpar</button>
+            <button class="btn primary" id="btnSave">Salvar</button>
+          </div>
+        </div>
+
+        <textarea id="note" placeholder="Escreva suas anotações aqui..."></textarea>
+
+        <div style="margin-top:8px">
+          <div class="muted small">Tags (separadas por vírgula)</div>
+          <input id="tagsInput" placeholder="ex: trabalho, projeto, pessoal" style="padding:8px;border-radius:8px;border:none;background:rgba(255,255,255,0.02);width:100%;margin-top:6px" />
+        </div>
+      </section>
+
+      <aside style="width:360px">
+        <div style="background:linear-gradient(180deg,#071022,#061026);padding:12px;border-radius:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-weight:700">Resultados</div>
+            <div class="small muted" id="resultsCount">—</div>
+          </div>
+
+          <div class="search-results" id="results"></div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="footer">
+      <div class="status saved" id="saveStatus">Salvo</div>
+      <div class="muted small">Dica: use Export/Import para backup; para login real use Firebase</div>
+    </div>
+  </main>
+
+  <!-- Modal simples de login/cadastro/import -->
+  <div id="modal" style="position:fixed;left:0;top:0;width:100%;height:100%;display:none;align-items:center;justify-content:center;background:rgba(2,6,23,0.6);z-index:60">
+    <div style="width:420px;background:linear-gradient(180deg,#0b1220,#071122);padding:18px;border-radius:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:700" id="modalTitle">Entrar</div>
+        <button class="btn" id="modalClose">X</button>
+      </div>
+
+      <div id="modalContent">
+        <!-- conteúdo gerado por JS -->
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ======== Config inicial / Estado ==========
+  const TOTAL_DAYS = 365;
+  const daylistEl = document.getElementById('daylist');
+  const noteEl = document.getElementById('note');
+  const dayTitleEl = document.getElementById('dayTitle');
+  const tagsInput = document.getElementById('tagsInput');
+  const bookmarksEl = document.getElementById('bookmarks');
+  const resultsEl = document.getElementById('results');
+  const resultsCountEl = document.getElementById('resultsCount');
+  const saveStatusEl = document.getElementById('saveStatus');
+  const avatarEl = document.getElementById('avatar');
+  const usernameDisplay = document.getElementById('usernameDisplay');
+  const userActions = document.getElementById('userActions');
+  const authControls = document.getElementById('authControls');
+
+  let currentDay = 1;
+  let isDirty = false;
+  let highlightTerm = '';
+  // Estrutura de dados por usuário:
+  // users stored in localStorage under key "ms_users" (object: {username: {pwHash:..., dataKey:...}})
+  // user data saved under "ms_data_<username>" = { days: {1:{text:'', tags:[], bookmarked:false}}, bookmarks: [day,...] }
+  let currentUser = null; // { username }
+  // Se nenhum usuário logado, usamos "guest" com dados locais persistidos em localStorage key "ms_guest"
+  const GUEST_KEY = 'ms_guest';
+
+  // ======== Helpers storage ========
+  function loadUsers() {
+    try { return JSON.parse(localStorage.getItem('ms_users') || '{}'); } catch { return {}; }
+  }
+  function saveUsers(u){ localStorage.setItem('ms_users', JSON.stringify(u)); }
+
+  function userDataKey(username){ return 'ms_data_' + username; }
+  function loadDataFor(username){
+    const raw = localStorage.getItem(userDataKey(username));
+    if (!raw) {
+      // criar estrutura padrão
+      const d = { days: {}, bookmarks: [], updatedAt: Date.now() };
+      localStorage.setItem(userDataKey(username), JSON.stringify(d));
+      return d;
+    }
+    try { return JSON.parse(raw); } catch { return { days: {}, bookmarks: [], updatedAt: Date.now() }; }
+  }
+  function saveDataFor(username, data){
+    data.updatedAt = Date.now();
+    localStorage.setItem(userDataKey(username), JSON.stringify(data));
+  }
+
+  function getActiveStorageKey(){
+    return currentUser ? userDataKey(currentUser.username) : GUEST_KEY;
+  }
+
+  // ======== UI: criar lista de dias ========
+  function renderDayList(){
+    daylistEl.innerHTML = '';
+    for(let i=1;i<=TOTAL_DAYS;i++){
+      const btn = document.createElement('button');
+      btn.className = 'daybtn' + (i===currentDay ? ' active' : '');
+      btn.textContent = 'Dia ' + i;
+      btn.addEventListener('click', ()=> { switchDay(i); });
+      // marcar dias com bookmark/nota
+      const data = getCurrentStore();
+      const dayData = data.days && data.days[i];
+      if (dayData && (dayData.text || (data.bookmarks || []).includes(i))) {
+        btn.style.fontWeight = '600';
+      }
+      daylistEl.appendChild(btn);
+    }
+  }
+
+  // ======== Store helpers (current user's data) ========
+  function getCurrentStore(){
+    if (currentUser) return loadDataFor(currentUser.username);
+    else {
+      try {
+        const raw = localStorage.getItem(GUEST_KEY);
+        return raw ? JSON.parse(raw) : { days: {}, bookmarks: [], updatedAt: Date.now() };
+      } catch { return { days: {}, bookmarks: [], updatedAt: Date.now() }; }
+    }
+  }
+  function saveCurrentStore(data){
+    if (currentUser) saveDataFor(currentUser.username, data);
+    else localStorage.setItem(GUEST_KEY, JSON.stringify(data));
+  }
+
+  // ======== Render editor for day ========
+  function renderDay(){
+    const store = getCurrentStore();
+    const dayData = store.days && store.days[currentDay] ? store.days[currentDay] : { text:'', tags:[], bookmarked:false };
+    dayTitleEl.textContent = 'Dia ' + currentDay;
+    noteEl.value = dayData.text || '';
+    tagsInput.value = (dayData.tags || []).join(', ');
+    document.getElementById('tagCount').textContent = (dayData.tags && dayData.tags.length ? dayData.tags.length + ' tags' : '0 tags');
+    // bookmark button text
+    const btnB = document.getElementById('btnBookmark');
+    btnB.textContent = (store.bookmarks && store.bookmarks.includes(currentDay)) ? 'Remover marcador' : 'Adicionar marcador';
+    setSavedStatus(true);
+    renderBookmarks();
+    renderDayList();
+    highlightSearchInNote();
+  }
+
+  // ======== Switch day with autosave ========
+  function switchDay(day){
+    if (isDirty) {
+      // salvar automaticamente antes de sair
+      saveDay();
+    }
+    currentDay = day;
+    isDirty = false;
+    renderDay();
+  }
+
+  // ======== Save / Clear day ========
+  function saveDay(){
+    const store = getCurrentStore();
+    if (!store.days) store.days = {};
+    store.days[currentDay] = store.days[currentDay] || {};
+    store.days[currentDay].text = noteEl.value;
+    const tagStr = tagsInput.value.trim();
+    store.days[currentDay].tags = tagStr ? tagStr.split(',').map(t=>t.trim()).filter(Boolean) : [];
+    // bookmarks preserved separately
+    saveCurrentStore(store);
+    isDirty = false;
+    setSavedStatus(true);
+    renderBookmarks();
+    renderDayList();
+  }
+  function clearDay(){
+    noteEl.value = '';
+    tagsInput.value = '';
+    saveDay();
+  }
+
+  // ======== Bookmarks ========
+  function toggleBookmark(){
+    const store = getCurrentStore();
+    store.bookmarks = store.bookmarks || [];
+    const idx = store.bookmarks.indexOf(currentDay);
+    if (idx === -1) store.bookmarks.push(currentDay);
+    else store.bookmarks.splice(idx,1);
+    saveCurrentStore(store);
+    renderBookmarks();
+    renderDayList();
+    renderDay();
+  }
+  function renderBookmarks(){
+    bookmarksEl.innerHTML = '';
+    const store = getCurrentStore();
+    const b = (store.bookmarks || []).slice().sort((a,b)=>a-b);
+    if (b.length===0){ bookmarksEl.innerHTML = '<div class="small muted">Sem marcadores</div>'; return; }
+    b.forEach(day=>{
+      const div = document.createElement('div');
+      div.className = 'bookmark-item';
+      div.innerHTML = '<div class="title">Dia '+day+'</div><div style="display:flex;gap:6px"><button class="btn" data-day="'+day+'" title="Ir">Ir</button><button class="btn" data-remove="'+day+'" title="Remover">✖</button></div>';
+      bookmarksEl.appendChild(div);
+    });
+    // eventos
+    bookmarksEl.querySelectorAll('button[data-day]').forEach(btn=>{
+      btn.addEventListener('click',()=> { switchDay(Number(btn.getAttribute('data-day'))); });
+    });
+    bookmarksEl.querySelectorAll('button[data-remove]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const day = Number(btn.getAttribute('data-remove'));
+        const store2 = getCurrentStore();
+        store2.bookmarks = (store2.bookmarks||[]).filter(x=>x!==day);
+        saveCurrentStore(store2);
+        renderBookmarks();
+        renderDayList();
+      });
+    });
+  }
+
+  // ======== Search across notes ========
+  function globalSearch(term){
+    const t = (term||'').trim();
+    resultsEl.innerHTML = '';
+    if (!t) { resultsCountEl.textContent = '—'; return; }
+    highlightTerm = t;
+    const store = getCurrentStore();
+    const hits = [];
+    for(let i=1;i<=TOTAL_DAYS;i++){
+      const d = store.days && store.days[i] ? store.days[i].text || '' : '';
+      if (!d) continue;
+      if (d.toLowerCase().includes(t.toLowerCase())){
+        const idx = d.toLowerCase().indexOf(t.toLowerCase());
+        const context = d.substring(Math.max(0, idx-30), idx+Math.min(200, t.length+80)).replace(/\n/g,' ');
+        hits.push({day:i, ctx:context});
+      }
+    }
+    resultsCountEl.textContent = hits.length + ' resultados';
+    if (hits.length===0){ resultsEl.innerHTML = '<div class="small muted">Nenhum resultado</div>'; return; }
+    hits.forEach(h=>{
+      const div = document.createElement('div');
+      div.className='result-item';
+      div.innerHTML = '<div style="font-weight:700">Dia '+h.day+'</div><div style="font-size:13px" title="'+h.ctx+'">'+escapeHtml(highlight(h.ctx, t))+'</div>';
+      div.addEventListener('click', ()=> { switchDay(h.day); });
+      resultsEl.appendChild(div);
+    });
+  }
+
+  // ======== Simple helpers ========
+  function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function highlight(text, term){
+    if (!term) return text;
+    const re = new RegExp('('+escapeReg(term)+')','ig');
+    return text.replace(re, '<span class="highlight">$1</span>');
+  }
+  function escapeReg(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+
+  function setSavedStatus(saved){
+    isDirty = !saved;
+    if (saved){ saveStatusEl.className='status saved'; saveStatusEl.textContent='Salvo'; }
+    else { saveStatusEl.className='status unsaved'; saveStatusEl.textContent='Não salvo'; }
+  }
+
+  // highlight in note area (search term)
+  function highlightSearchInNote(){
+    if (!highlightTerm) return;
+    // quick approach: scroll to first occurrence
+    const v = noteEl.value.toLowerCase();
+    const idx = v.indexOf(highlightTerm.toLowerCase());
+    if (idx>=0){
+      // colocar cursor por lá e scroll
+      noteEl.focus();
+      noteEl.selectionStart = idx;
+      noteEl.selectionEnd = idx + highlightTerm.length;
+      noteEl.scrollTop = noteEl.scrollHeight * (idx / Math.max(1, v.length));
+    }
+  }
+
+  // ======== Login / Signup (simples local) ========
+  function openModal(html){ document.getElementById('modalContent').innerHTML = html; document.getElementById('modal').style.display='flex'; }
+  function closeModal(){ document.getElementById('modal').style.display='none'; }
+
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+
+  function showLogin(){
+    openModal(`
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label class="small muted">Usuário</label>
+        <input id="m_user" style="padding:8px;border-radius:8px;border:none;background:rgba(255,255,255,0.02);color:inherit">
+        <label class="small muted">Senha</label>
+        <input id="m_pass" type="password" style="padding:8px;border-radius:8px;border:none;background:rgba(255,255,255,0.02);color:inherit">
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
+          <button class="btn" id="toSignup">Cadastrar</button>
+          <button class="btn primary" id="doLogin">Entrar</button>
+        </div>
+        <div class="small muted">Use esse login apenas para testar. Dados ficam no seu navegador.</div>
+      </div>
+    `);
+    document.getElementById('doLogin').addEventListener('click', doLogin);
+    document.getElementById('toSignup').addEventListener('click', showSignup);
+  }
+
+  function showSignup(){
+    openModal(`
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label class="small muted">Escolha um usuário</label>
+        <input id="m_user" style="padding:8px;border-radius:8px;border:none;background:rgba(255,255,255,0.02);color:inherit">
+        <label class="small muted">Senha</label>
+        <input id="m_pass" type="password" style="padding:8px;border-radius:8px;border:none;background:rgba(255,255,255,0.02);color:inherit">
+        <label class="small muted">Confirmar senha</label>
+        <input id="m_pass2" type="password" style="padding:8px;border-radius:8px;border:none;background:rgba(255,255,255,0.02);color:inherit">
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
+          <button class="btn" id="backLogin">Voltar</button>
+          <button class="btn primary" id="doSignup">Cadastrar</button>
+        </div>
+        <div class="small muted">Senha é armazenada localmente (não segura). Para produção use Firebase/Auth + Firestore.</div>
+      </div>
+    `);
+    document.getElementById('backLogin').addEventListener('click', showLogin);
+    document.getElementById('doSignup').addEventListener('click', doSignup);
+  }
+
+  function doSignup(){
+    const u = document.getElementById('m_user').value.trim();
+    const p = document.getElementById('m_pass').value;
+    const p2 = document.getElementById('m_pass2').value;
+    if (!u || !p) { alert('Preencha usuário e senha'); return; }
+    if (p !== p2) { alert('Senhas não batem'); return; }
+    const users = loadUsers();
+    if (users[u]) { alert('Usuário já existe'); return; }
+    users[u] = { pwHash: simpleHash(p) };
+    saveUsers(users);
+    // criar dados iniciais
+    saveDataFor(u, { days:{}, bookmarks:[], updatedAt: Date.now() });
+    alert('Cadastro criado! Agora faça login.');
+    showLogin();
+  }
+
+  function doLogin(){
+    const u = document.getElementById('m_user').value.trim();
+    const p = document.getElementById('m_pass').value;
+    if (!u || !p) { alert('Preencha usuário e senha'); return; }
+    const users = loadUsers();
+    if (!users[u] || users[u].pwHash !== simpleHash(p)) { alert('Usuário ou senha inválidos'); return; }
+    // logar
+    currentUser = { username: u };
+    closeModal();
+    postLogin();
+  }
+
+  function simpleHash(s){
+    // NÃO é seguro — apenas para demo. Para produção usar hash server-side.
+    try {
+      return btoa(unescape(encodeURIComponent(s))).slice(0, 40);
+    } catch { return s; }
+  }
+
+  function postLogin(){
+    usernameDisplay.textContent = currentUser.username;
+    avatarEl.textContent = currentUser.username.slice(0,1).toUpperCase();
+    document.getElementById('btnLogin').textContent = 'Perfil';
+    // mostrar botões logout/export do usuário
+    authControls.innerHTML = `
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="btnLogout">Sair</button>
+        <button class="btn" id="btnExportUser">Exportar</button>
+      </div>
+    `;
+    document.getElementById('btnLogout').addEventListener('click', doLogout);
+    document.getElementById('btnExportUser').addEventListener('click', ()=> exportData(true));
+    // migrar guest data? (não forçado)
+    renderDay();
+  }
+
+  function doLogout(){
+    if (!confirm('Deseja sair?')) return;
+    currentUser = null;
+    usernameDisplay.textContent = 'Convidado';
+    avatarEl.textContent = '?';
+    authControls.innerHTML = '';
+    renderDay();
+  }
+
+  // ======== Export / Import ========
+  function exportData(forUser=false){
+    const store = getCurrentStore();
+    const payload = {
+      meta: { exportedAt: new Date().toISOString(), user: (currentUser? currentUser.username:'guest') },
+      data: store
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `sketchbook_${payload.meta.user}.json`; a.click();
+    URL.revokeObjectURL(url);
+  }
+  function showImport(){
+    openModal(`
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label class="small muted">Escolha arquivo JSON exportado</label>
+        <input id="import_file" type="file" accept=".json">
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn" id="importCancel">Cancelar</button>
+          <button class="btn primary" id="importDo">Importar</button>
+        </div>
+      </div>
+    `);
+    document.getElementById('importCancel').addEventListener('click', closeModal);
+    document.getElementById('importDo').addEventListener('click', doImport);
+  }
+  function doImport(){
+    const f = document.getElementById('import_file').files[0];
+    if (!f) { alert('Escolha um arquivo'); return; }
+    const reader = new FileReader();
+    reader.onload = ()=> {
+      try {
+        const obj = JSON.parse(reader.result);
+        if (!obj.data) { alert('Arquivo inválido'); return; }
+        // sobrescrever os dados atuais (perigoso)
+        if (!confirm('Isto substituirá os dados atuais do usuário ativo. Continuar?')) return;
+        saveCurrentStore(obj.data);
+        closeModal();
+        renderDay();
+        alert('Importado com sucesso');
+      } catch(e){ alert('Erro ao ler arquivo'); }
+    };
+    reader.readAsText(f);
+  }
+
+  // ======== Events / UI wiring ========
+  document.getElementById('btnLogin').addEventListener('click', showLogin);
+  document.getElementById('btnPrev').addEventListener('click', ()=> switchDay(Math.max(1, currentDay-1)));
+  document.getElementById('btnNext').addEventListener('click', ()=> switchDay(Math.min(TOTAL_DAYS, currentDay+1)));
+  document.getElementById('btnBookmark').addEventListener('click', toggleBookmark);
+  document.getElementById('btnSave').addEventListener('click', saveDay);
+  document.getElementById('btnClearDay').addEventListener('click', ()=>{ if(confirm('Limpar esta página?')) clearDay();});
+  document.getElementById('btnSearch').addEventListener('click', ()=> globalSearch(document.getElementById('globalSearch').value));
+  document.getElementById('globalSearch').addEventListener('keydown', (e)=> { if (e.key==='Enter') globalSearch(e.target.value); });
+  document.getElementById('btnExport').addEventListener('click', ()=> exportData(false));
+  document.getElementById('btnImport').addEventListener('click', showImport);
+
+  // monitorar edição
+  noteEl.addEventListener('input', ()=> { setSavedStatus(false); });
+  tagsInput.addEventListener('input', ()=> { setSavedStatus(false); });
+
+  // salvar automaticamente ao fechar ou trocar aba
+  window.addEventListener('beforeunload', (e)=>{
+    if (isDirty) saveDay();
+  });
+
+  // atalho Ctrl+S salvar
+  window.addEventListener('keydown', (e)=>{
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); saveDay(); alert('Salvo'); }
+  });
+
+  // ======== Initial render ========
+  function init(){
+    // tentar carregar guest data se existir
+    if (!localStorage.getItem(GUEST_KEY)) localStorage.setItem(GUEST_KEY, JSON.stringify({ days:{}, bookmarks:[], updatedAt: Date.now() }));
+    renderDayList();
+    renderBookmarks();
+    renderDay();
+    // se quiser auto-login com último usuário, poderia carregar aqui — mas não por segurança
+  }
+  init();
+
+  // ======== Utilities: simple find/replace highlight in results HTML ========
+  // (já feito)
+
+  // ======== Quick UI: show login state if logged in ========
+  // (no demo, usuário precisa entrar manualmente)
+
+  // ======== extras: botões dentro do editor area: clique duas vezes no título para ir ao dia do ano atual ========
+  dayTitleEl.addEventListener('dblclick', ()=>{
+    const today = (new Date());
+    // converter data para dia do ano simples (1..365)
+    const start = new Date(today.getFullYear(),0,0);
+    const diff = today - start;
+    const oneDay = 1000*60*60*24;
+    const dayOfYear = Math.floor(diff/oneDay);
+    switchDay(Math.min(Math.max(1, dayOfYear), TOTAL_DAYS));
+  });
+
+  // ======== Import trigger helper ========
+  document.getElementById('btnExport').addEventListener('click', ()=> exportData(false));
+  // export user button handled in postLogin
+
+  // ======== small helper: escape highlight in result text to show html properly ========
+  // (we used escapeHtml earlier)
+
+})();
+</script>
+</body>
+</html>
 
